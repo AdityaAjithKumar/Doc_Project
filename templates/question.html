@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Question</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #e3f2fd;
+            padding-top: 80px;
+            position: relative;
+        }
+
+        h1 {
+            position: fixed;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: 48px;
+            color: #2196F3;
+            margin-top: 3%;
+            z-index: 1003;
+        }
+
+        .container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+            width: 900px;
+            height: auto;
+            text-align: center;
+            transition: margin-left 0.3s;
+            z-index: 1;
+        }
+
+        h2 {
+            font-size: 24px;
+            color: #2196F3;
+            margin-bottom: 20px;
+        }
+
+        .correct {
+            color: green;
+        }
+
+        .incorrect {
+            color: red;
+        }
+
+        .option-container {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .option-container:hover {
+            background-color: #e3f2fd;
+        }
+
+        .option-container input[type="radio"] {
+            accent-color: #2196F3;
+            display: none; /* Hide the radio button */
+        }
+
+        .option-container input[type="radio"]:checked + .option-label {
+            color: #2196F3;
+            font-weight: bold;
+        }
+
+        .option-label {
+            margin-left: 10px;
+            font-size: 18px;
+        }
+
+        .button-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        .button-container button, input[type="submit"] {
+            padding: 15px 25px;
+            font-size: 18px;
+            cursor: pointer;
+            border: 2px solid #2196F3;
+            background-color: #ffffff;
+            color: #2196F3;
+            border-radius: 10px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .button-container button:hover, input[type="submit"]:not(:disabled):hover {
+            background-color: #2196F3;
+            color: white;
+        }
+
+        input[type="submit"]:disabled {
+            background-color: #e3f2fd;
+            color: #b0bec5;
+            cursor: not-allowed;
+        }
+
+        .input-container {
+            margin-bottom: 20px;
+        }
+
+        .topic-input, .number-input {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            border-radius: 25px;
+            text-align: center;
+            box-sizing: border-box;
+            margin-bottom: 5px;
+        }
+
+        .topic-input {
+            border: 2px solid #2196F3;
+            background-color: #e3f2fd;
+            color: #2196F3;
+        }
+
+        .number-input {
+            border: 2px solid #1976D2;
+            background-color: #e3f2fd;
+            color: #1976D2;
+        }
+
+        /* Additional styles */
+        .flashcard {
+            width: 100%;
+            height: 70px;
+            perspective: 1000px;
+            margin-bottom: 20px;
+        }
+
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            height: 220%;
+            text-align: center;
+            transition: transform 0.8s;
+            transform-style: preserve-3d;
+        }
+
+        .flashcard.flip .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+
+        .flashcard-front, .flashcard-back {
+            position: absolute;
+            width: 100%;
+            height: 70%;
+            backface-visibility: hidden;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .flashcard-back {
+            transform: rotateY(180deg);
+        }
+
+        #user-info {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            align-items: center;
+            z-index: 1002;
+        }
+
+        #welcome-message {
+            margin-right: 15px;
+            font-size: 20px;
+            color: #2196F3;
+        }
+
+        #logout-btn {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #logout-btn:hover {
+            background-color: #d32f2f;
+        }
+
+        .sidebar {
+            position: fixed;
+            left: -300px;
+            top: 0;
+            width: 300px;
+            height: 100%;
+            background-color: #bbdefb;
+            transition: left 0.3s;
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .sidebar.active {
+            left: 0;
+        }
+
+        .sidebar-trigger {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 20px;
+            height: 100%;
+            z-index: 999;
+        }
+
+        .file-upload-label {
+            display: inline-block;
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 40px;
+        }
+
+        #image-upload {
+            display: none;
+        }
+
+        #main-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        #toggle-sidebar {
+            position: fixed;
+            left: 10px;
+            top: 70px;
+            z-index: 1001;
+            padding: 15px 25px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: background-color 0.3s;
+        }
+
+        #toggle-sidebar:hover {
+            background-color: #1976D2;
+        }
+
+        #quiz-history, #flashcard-history {
+            margin-top: 20px;
+        }
+
+        #quiz-list, #flashcard-list {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #quiz-list li, #flashcard-list li {
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #quiz-list li:hover, #flashcard-list li:hover {
+            background-color: #e3f2fd;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none; /* Hidden by default */
+            z-index: 1001;
+        }
+
+        .overlay.active {
+            display: block;
+        }
+
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-screen p {
+            color: white;
+            margin-top: 10px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>{{ question['question'] }}</h2>
+        <form method="POST">
+            {% for option in question['options'] %}
+                {% set option_letter = option[0] %}
+                <div class="option-container" onclick="selectOption('{{ option_letter }}')">
+                    <input type="radio" id="option_{{ option_letter }}" name="option" value="{{ option_letter }}"
+                        {% if submitted %}disabled{% endif %}
+                        {% if selected_option == option_letter %}checked{% endif %}>
+                    <label for="option_{{ option_letter }}" class="option-label
+                        {% if submitted and option_letter == selected_option %}{{ 'correct' if correct else 'incorrect' }}{% endif %}">
+                        {{ option }}
+                    </label>
+                </div>
+            {% endfor %}
+            <input type="submit" value="Submit" {% if submitted %}disabled{% endif %} class="submit-button">
+        </form>
+
+        {% if submitted %}
+            {% if correct %}
+                <p class="correct">Correct! Well done.</p>
+            {% else %}
+                <p class="incorrect">Incorrect. The correct answer is {{ explanation }}</p>
+            {% endif %}
+            <div class="button-container">
+                <form action="{{ url_for('question', qid=qid - 1) }}" method="get">
+                    <button type="submit">Previous Question</button>
+                </form>
+                <form action="{{ url_for('question', qid=qid + 1) }}" method="get">
+                    <button type="submit">Next Question</button>
+                </form>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        function selectOption(optionValue) {
+            const radio = document.querySelector(`input[name="option"][value="${optionValue}"]`);
+            if (radio) {
+                radio.checked = true;
+            }
+        }
+    </script>
+</body>
+</html>
