@@ -146,6 +146,7 @@ def upload_file():
             file.save(file_path)
             session['questions'] = read_docx(file_path)
             session['answers'] = [None] * len(session['questions'])  # Initialize answers list
+            session['score'] = 0
             return redirect(url_for('question', qid=0))
     return render_template('upload.html')
 
@@ -168,6 +169,8 @@ def question(qid):
             correct = (selected_option == q['correct_answer'])
             answers[qid] = {'selected_option': selected_option, 'correct': correct}
             session['answers'] = answers
+            if correct:
+                session['score'] = session.get('score', 0) + 1
             return redirect(url_for('question', qid=qid))
 
     if submitted:
@@ -182,6 +185,7 @@ def question(qid):
         submitted=submitted,
         selected_option=selected_option,
         total=len(questions),
+        score=session.get('score', 0),
     )
 
 

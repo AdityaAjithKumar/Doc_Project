@@ -183,7 +183,33 @@
             right: 10px;
             display: flex;
             align-items: center;
+            gap: 15px;
             z-index: 1002;
+        }
+
+        #score-display {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2196F3;
+            background-color: #ffffff;
+            border: 2px solid #2196F3;
+            border-radius: 10px;
+            padding: 8px 18px;
+        }
+
+        #timer-display {
+            font-size: 20px;
+            font-weight: bold;
+            color: #ffffff;
+            background-color: #2196F3;
+            border-radius: 10px;
+            padding: 8px 18px;
+            min-width: 90px;
+            text-align: center;
+        }
+
+        #timer-display.warning {
+            background-color: #f44336;
         }
 
         #welcome-message {
@@ -344,6 +370,14 @@
 </head>
 <body>
     <h1>Quiz</h1>
+
+    <div id="user-info">
+        <div id="score-display">&#9733; Score: <span id="score-value">{{ score }}</span></div>
+        {% if not submitted %}
+        <div id="timer-display">&#9201; <span id="timer-value">60</span>s</div>
+        {% endif %}
+    </div>
+
     <div class="container">
         <p style="color:#90a4ae; font-size:15px; margin-bottom:8px;">Question {{ qid + 1 }} of {{ total }}</p>
         <h2>{{ question['question'] }}</h2>
@@ -422,6 +456,43 @@
                 radio.checked = true;
             }
         }
+
+        {% if not submitted %}
+        (function () {
+            var timeLeft = 60;
+            var timerEl = document.getElementById('timer-value');
+            var timerBox = document.getElementById('timer-display');
+            var form = document.querySelector('form');
+            var timedOut = false;
+
+            var interval = setInterval(function () {
+                timeLeft--;
+                if (timeLeft < 0) timeLeft = 0;
+                timerEl.textContent = timeLeft;
+
+                if (timeLeft <= 10) {
+                    timerBox.classList.add('warning');
+                }
+
+                if (timeLeft === 0) {
+                    clearInterval(interval);
+                    if (!timedOut) {
+                        timedOut = true;
+                        if (form) {
+                            form.submit();
+                        }
+                    }
+                }
+            }, 1000);
+
+            if (form) {
+                form.addEventListener('submit', function () {
+                    clearInterval(interval);
+                    timedOut = true;
+                });
+            }
+        })();
+        {% endif %}
     </script>
 </body>
 </html>
