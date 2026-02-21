@@ -183,7 +183,33 @@
             right: 10px;
             display: flex;
             align-items: center;
+            gap: 15px;
             z-index: 1002;
+        }
+
+        #score-display {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2196F3;
+            background-color: #ffffff;
+            border: 2px solid #2196F3;
+            border-radius: 10px;
+            padding: 8px 18px;
+        }
+
+        #timer-display {
+            font-size: 20px;
+            font-weight: bold;
+            color: #ffffff;
+            background-color: #2196F3;
+            border-radius: 10px;
+            padding: 8px 18px;
+            min-width: 90px;
+            text-align: center;
+        }
+
+        #timer-display.warning {
+            background-color: #f44336;
         }
 
         #welcome-message {
@@ -343,37 +369,82 @@
     </style>
 </head>
 <body>
+    <h1>Quiz</h1>
+
+    <div id="user-info">
+        <div id="score-display">&#9733; Score: <span id="score-value">{{ score }}</span></div>
+        {% if not submitted %}
+        <div id="timer-display">&#9201; <span id="timer-value">60</span>s</div>
+        {% endif %}
+    </div>
+
     <div class="container">
+        <p style="color:#90a4ae; font-size:15px; margin-bottom:8px;">Question {{ qid + 1 }} of {{ total }}</p>
         <h2>{{ question['question'] }}</h2>
         <form method="POST">
             {% for option in question['options'] %}
-                {% set option_letter = option[0] %}
-                <div class="option-container" onclick="selectOption('{{ option_letter }}')">
-                    <input type="radio" id="option_{{ option_letter }}" name="option" value="{{ option_letter }}"
+                {% set letter = option['letter'] %}
+                <div class="option-container" onclick="selectOption('{{ letter }}')">
+                    <input type="radio" id="option_{{ letter }}" name="option" value="{{ letter }}"
                         {% if submitted %}disabled{% endif %}
-                        {% if selected_option == option_letter %}checked{% endif %}>
-                    <label for="option_{{ option_letter }}" class="option-label
-                        {% if submitted and option_letter == selected_option %}{{ 'correct' if correct else 'incorrect' }}{% endif %}">
-                        {{ option }}
+                        {% if selected_option == letter %}checked{% endif %}>
+                    <label for="option_{{ letter }}" class="option-label
+                        {% if submitted %}
+                            {% if letter == question['correct_answer'] %} correct
+                            {% elif letter == selected_option %} incorrect
+                            {% endif %}
+                        {% endif %}">
+                        {{ letter }}. {{ option['text'] }}
                     </label>
                 </div>
             {% endfor %}
-            <input type="submit" value="Submit" {% if submitted %}disabled{% endif %} class="submit-button">
+            <input type="submit" value="Submit Answer" {% if submitted %}disabled{% endif %} class="submit-button">
         </form>
 
         {% if submitted %}
             {% if correct %}
-                <p class="correct">Correct! Well done.</p>
+                <p class="correct" style="font-size:18px; margin-top:15px;">&#10003; Correct! Well done.</p>
             {% else %}
-                <p class="incorrect">Incorrect. The correct answer is {{ explanation }}</p>
+                <p class="incorrect" style="font-size:18px; margin-top:15px;">&#10007; Incorrect.
+                    The correct answer is <strong>{{ question['correct_answer'] }}. {{ question['correct_answer_text'] }}</strong>
+                </p>
             {% endif %}
+
+            {% if question['explanation'] %}
+                <div style="background:#e8f5e9; border-left:4px solid #4caf50; padding:12px 16px; border-radius:6px; margin-top:16px; text-align:left;">
+                    <strong>Explanation</strong>
+                    <p style="margin:6px 0 0;">{{ question['explanation'] }}</p>
+                </div>
+            {% endif %}
+
+            {% if question['wrong_explanations'] %}
+                <div style="background:#fff8e1; border-left:4px solid #ffc107; padding:12px 16px; border-radius:6px; margin-top:12px; text-align:left;">
+                    <strong>Why the other options are not the best answer</strong>
+                    <ul style="margin:8px 0 0; padding-left:18px;">
+                        {% for letter, reason in question['wrong_explanations'].items() %}
+                            <li style="margin-bottom:6px;"><strong>{{ letter }}.</strong> {{ reason }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
             <div class="button-container">
-                <form action="{{ url_for('question', qid=qid - 1) }}" method="get">
-                    <button type="submit">Previous Question</button>
-                </form>
-                <form action="{{ url_for('question', qid=qid + 1) }}" method="get">
-                    <button type="submit">Next Question</button>
-                </form>
+                {% if qid > 0 %}
+                    <form action="{{ url_for('question', qid=qid - 1) }}" method="get">
+                        <button type="submit">&#8592; Previous</button>
+                    </form>
+                {% else %}
+                    <span></span>
+                {% endif %}
+                {% if qid + 1 < total %}
+                    <form action="{{ url_for('question', qid=qid + 1) }}" method="get">
+                        <button type="submit">Next &#8594;</button>
+                    </form>
+                {% else %}
+                    <form action="{{ url_for('upload_file') }}" method="get">
+                        <button type="submit">Finish</button>
+                    </form>
+                {% endif %}
             </div>
         {% endif %}
     </div>
@@ -381,10 +452,47 @@
     <script>
         function selectOption(optionValue) {
             const radio = document.querySelector(`input[name="option"][value="${optionValue}"]`);
-            if (radio) {
+            if (radio && !radio.disabled) {
                 radio.checked = true;
             }
         }
+
+        {% if not submitted %}
+        (function () {
+            var timeLeft = 60;
+            var timerEl = document.getElementById('timer-value');
+            var timerBox = document.getElementById('timer-display');
+            var form = document.querySelector('form');
+            var timedOut = false;
+
+            var interval = setInterval(function () {
+                timeLeft--;
+                if (timeLeft < 0) timeLeft = 0;
+                timerEl.textContent = timeLeft;
+
+                if (timeLeft <= 10) {
+                    timerBox.classList.add('warning');
+                }
+
+                if (timeLeft === 0) {
+                    clearInterval(interval);
+                    if (!timedOut) {
+                        timedOut = true;
+                        if (form) {
+                            form.submit();
+                        }
+                    }
+                }
+            }, 1000);
+
+            if (form) {
+                form.addEventListener('submit', function () {
+                    clearInterval(interval);
+                    timedOut = true;
+                });
+            }
+        })();
+        {% endif %}
     </script>
 </body>
 </html>
