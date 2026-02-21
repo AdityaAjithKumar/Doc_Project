@@ -17,34 +17,118 @@ if not os.path.exists(app.config['UPLOAD_FOLDER']):
 
 
 def read_docx(file_path):
+    """Parse an Answer Key docx with the schema:
+        Question N: <text>
+        • A. <option>
+        • B. <option>
+        • C. <option>
+        • D. <option>
+        The correct answer is: X. <answer text>
+        Explanation
+        <explanation paragraph>
+        Why the other options are not the best answer
+        • A. <option>: <reason>
+        • C. <option>: <reason>
+        • D. <option>: <reason>
+    Duplicate questions (same number) are skipped.
+    """
     doc = docx.Document(file_path)
     questions = []
-    current_question = None
+    seen_numbers = set()
+    current_q = None
+    state = None          # 'options' | 'explanation' | 'why_wrong'
+    explanation_buf = []
 
-    question_pattern = re.compile(r'^\d+\.\s')
-    option_pattern = re.compile(r'^[A-D]\.')
+    # Regex patterns
+    q_re      = re.compile(r'^Question\s+(\d+):\s+(.+)', re.IGNORECASE)
+    # Options / wrong-explanation bullets have NO literal bullet char in text;
+    # the 'List Bullet' Word style is purely a paragraph style.
+    opt_re    = re.compile(r'^([A-D])\.\s+(.+)')
+    answer_re = re.compile(r'^The correct answer is:\s*([A-D])\.\s+(.*)', re.IGNORECASE)
+    why_re    = re.compile(r'^([A-D])\.\s+(.+)')
 
-    for paragraph in doc.paragraphs:
-        text = paragraph.text.strip()
-        if question_pattern.match(text):  # New question
-            if current_question:
-                questions.append(current_question)
-            current_question = {'question': text, 'options': [], 'answer': ''}
-            i = 0  # Initialize the option counter
-        elif option_pattern.match(text):  # Option
-            if current_question:  # Ensure current_question is not None
-                i += 1
-                if i == 5:  # This means the next line is the explanation
-                    current_question['answer'] = text
-                else:
-                    current_question['options'].append(text)
-        elif text.startswith('✓'):  # Answer
-            if current_question:  # Ensure current_question is not None
-                current_question['answer'] = text
+    def save_current():
+        if current_q:
+            if explanation_buf:
+                current_q['explanation'] = ' '.join(explanation_buf)
+            questions.append(current_q)
 
-    if current_question:
-        questions.append(current_question)
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if not text:
+            continue
 
+        # Skip section headers
+        if re.match(r'^Answer Key', text, re.IGNORECASE):
+            continue
+        if re.match(r'^Why the other options', text, re.IGNORECASE):
+            if current_q and explanation_buf:
+                current_q['explanation'] = ' '.join(explanation_buf)
+                explanation_buf = []
+            state = 'why_wrong'
+            continue
+        if text == 'Explanation':
+            state = 'explanation'
+            explanation_buf = []
+            continue
+
+        # New question heading
+        m = q_re.match(text)
+        if m:
+            q_num = int(m.group(1))
+            if q_num in seen_numbers:
+                # Duplicate: finalise any in-progress question and skip
+                save_current()
+                current_q = None
+                state = None
+                explanation_buf = []
+                continue
+            seen_numbers.add(q_num)
+            save_current()
+            current_q = {
+                'number': q_num,
+                'question': m.group(2),
+                'options': [],           # list of {'letter': str, 'text': str}
+                'correct_answer': '',    # letter only, e.g. 'B'
+                'correct_answer_text': '',
+                'explanation': '',
+                'wrong_explanations': {}  # letter -> reason string
+            }
+            state = 'options'
+            explanation_buf = []
+            continue
+
+        if current_q is None:
+            continue
+
+        # "The correct answer is: X. ..."
+        m = answer_re.match(text)
+        if m:
+            current_q['correct_answer'] = m.group(1)
+            current_q['correct_answer_text'] = m.group(2)
+            state = None
+            continue
+
+        if state == 'options':
+            m = opt_re.match(text)
+            if m:
+                current_q['options'].append({'letter': m.group(1), 'text': m.group(2)})
+            continue
+
+        if state == 'explanation':
+            explanation_buf.append(text)
+            continue
+
+        if state == 'why_wrong':
+            m = why_re.match(text)
+            if m:
+                letter = m.group(1)
+                # Format: "Option text: reason" – keep the full string as the reason
+                current_q['wrong_explanations'][letter] = m.group(2)
+            continue
+
+    save_current()
+    questions.sort(key=lambda q: q['number'])
     return questions
 
 
@@ -73,29 +157,32 @@ def question(qid):
     if qid >= len(questions) or qid < 0:
         return redirect(url_for('upload_file'))
 
-    question = questions[qid]
+    q = questions[qid]
     correct = None
-    explanation = None
     selected_option = None
     submitted = answers[qid] is not None
 
     if request.method == 'POST' and not submitted:
         selected_option = request.form.get('option')
         if selected_option:
-            correct_option = question['answer'].split('.')[0].strip()[-1]  # Extract the correct option
-            explanation = question['answer']
-            correct = (selected_option == correct_option)
-            answers[qid] = {'selected_option': selected_option, 'correct': correct, 'explanation': explanation}
-            session['answers'] = answers  # Update session with answers
-            return redirect(url_for('question', qid=qid))  # Reload the page to prevent resubmission
+            correct = (selected_option == q['correct_answer'])
+            answers[qid] = {'selected_option': selected_option, 'correct': correct}
+            session['answers'] = answers
+            return redirect(url_for('question', qid=qid))
 
     if submitted:
         selected_option = answers[qid]['selected_option']
         correct = answers[qid]['correct']
-        explanation = answers[qid]['explanation']
 
-    return render_template('question.html', question=question, qid=qid, correct=correct, explanation=explanation,
-                           submitted=submitted, selected_option=selected_option)
+    return render_template(
+        'question.html',
+        question=q,
+        qid=qid,
+        correct=correct,
+        submitted=submitted,
+        selected_option=selected_option,
+        total=len(questions),
+    )
 
 
 if __name__ == '__main__':
