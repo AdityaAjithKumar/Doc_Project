@@ -1,10 +1,6 @@
 # Use the official Python image from the Docker Hub
 FROM python:3.9-slim
 
-# Set environment variables
-ENV FLASK_APP=app.py
-ENV FLASK_RUN_HOST=0.0.0.0
-
 # Set the working directory
 WORKDIR /app
 
@@ -15,8 +11,8 @@ RUN pip install -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# Expose the port Flask runs on
-EXPOSE 5000
+# Render injects $PORT at runtime; expose a default for local use
+EXPOSE 10000
 
-# Command to run the application
-CMD ["flask", "run"]
+# Use gunicorn for production; shell form expands $PORT at runtime
+CMD gunicorn --bind "0.0.0.0:${PORT:-10000}" --workers 1 app:app

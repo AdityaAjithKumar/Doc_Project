@@ -3,17 +3,23 @@ import docx
 import re
 import os
 from werkzeug.utils import secure_filename
-from flask_session import Session
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['SECRET_KEY'] = 'your_secret_key'
-app.config['SESSION_TYPE'] = 'filesystem'  # Use filesystem to store session data
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_secret_key')
 
-Session(app)  # Initialize the session
+# In-memory cache: avoids re-parsing the same file on every request
+_question_cache = {}
 
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
+
+
+def get_questions(file_path):
+    """Return parsed questions, using module-level cache to avoid re-parsing."""
+    if file_path not in _question_cache:
+        _question_cache[file_path] = read_docx(file_path)
+    return _question_cache[file_path]
 
 
 def read_docx(file_path):
@@ -144,8 +150,12 @@ def upload_file():
             filename = secure_filename(file.filename)
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(file_path)
-            session['questions'] = read_docx(file_path)
-            session['answers'] = [None] * len(session['questions'])  # Initialize answers list
+            # Pre-cache the questions so the first request is fast
+            get_questions(file_path)
+            session.clear()
+            session['filename'] = filename
+            # answers stored compactly: {str(qid): selected_letter}
+            session['answers'] = {}
             session['score'] = 0
             return redirect(url_for('question', qid=0))
     return render_template('upload.html')
@@ -153,29 +163,36 @@ def upload_file():
 
 @app.route('/question/<int:qid>', methods=['GET', 'POST'])
 def question(qid):
-    questions = session.get('questions', [])
-    answers = session.get('answers', [])
+    filename = session.get('filename')
+    if not filename:
+        return redirect(url_for('upload_file'))
+
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if not os.path.exists(file_path):
+        session.clear()
+        return redirect(url_for('upload_file'))
+
+    questions = get_questions(file_path)
+    # answers: {str(qid): selected_letter}
+    answers = session.get('answers', {})
+
     if qid >= len(questions) or qid < 0:
         return redirect(url_for('upload_file'))
 
     q = questions[qid]
-    correct = None
-    selected_option = None
-    submitted = answers[qid] is not None
+    submitted = str(qid) in answers
+    selected_option = answers.get(str(qid)) if submitted else None
+    correct = (selected_option == q['correct_answer']) if submitted else None
 
     if request.method == 'POST' and not submitted:
         selected_option = request.form.get('option')
         if selected_option:
             correct = (selected_option == q['correct_answer'])
-            answers[qid] = {'selected_option': selected_option, 'correct': correct}
+            answers[str(qid)] = selected_option
             session['answers'] = answers
             if correct:
                 session['score'] = session.get('score', 0) + 1
             return redirect(url_for('question', qid=qid))
-
-    if submitted:
-        selected_option = answers[qid]['selected_option']
-        correct = answers[qid]['correct']
 
     return render_template(
         'question.html',
