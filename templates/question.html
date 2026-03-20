@@ -3,425 +3,531 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiz Question</title>
+    <title>Quiz - Question {{ qid + 1 }}</title>
     <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            background-color: #e3f2fd;
-            padding-top: 80px;
-            position: relative;
+            color: #333;
         }
 
-        h1 {
-            position: fixed;
-            top: 20px;
-            width: 100%;
-            text-align: center;
-            font-size: 48px;
-            color: #2196F3;
-            margin-top: 3%;
-            z-index: 1003;
-        }
-
-        .container {
-            background-color: #ffffff;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
-            width: 900px;
-            height: auto;
-            text-align: center;
-            transition: margin-left 0.3s;
-            z-index: 1;
-        }
-
-        h2 {
-            font-size: 24px;
-            color: #2196F3;
-            margin-bottom: 20px;
-        }
-
-        .correct {
-            color: green;
-        }
-
-        .incorrect {
-            color: red;
-        }
-
-        .option-container {
-            margin-bottom: 15px;
+        /* ── Top bar ── */
+        .top-bar {
+            position: fixed; top: 0; left: 0; right: 0;
+            background: rgba(255,255,255,0.97);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(0,0,0,0.08);
+            z-index: 200;
+            padding: 12px 24px;
             display: flex;
             align-items: center;
-            cursor: pointer;
-            padding: 10px;
-            border-radius: 5px;
-            transition: background-color 0.3s;
-        }
-
-        .option-container:hover {
-            background-color: #e3f2fd;
-        }
-
-        .option-container input[type="radio"] {
-            accent-color: #2196F3;
-            display: none; /* Hide the radio button */
-        }
-
-        .option-container input[type="radio"]:checked + .option-label {
-            color: #2196F3;
-            font-weight: bold;
-        }
-
-        .option-label {
-            margin-left: 10px;
-            font-size: 18px;
-        }
-
-        .button-container {
-            display: flex;
             justify-content: space-between;
-            margin-top: 20px;
+            gap: 16px;
         }
 
-        .button-container button, input[type="submit"] {
-            padding: 15px 25px;
-            font-size: 18px;
-            cursor: pointer;
-            border: 2px solid #2196F3;
-            background-color: #ffffff;
-            color: #2196F3;
-            border-radius: 10px;
-            transition: background-color 0.3s, color 0.3s;
+        .top-left { display: flex; align-items: center; gap: 12px; }
+
+        .hamburger {
+            width: 40px; height: 40px;
+            border: none; border-radius: 10px;
+            background: #f0f0f5; cursor: pointer;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 4px;
+            transition: background 0.2s;
+        }
+        .hamburger:hover { background: #e0e0ea; }
+        .hamburger span { display: block; width: 18px; height: 2px; background: #555; border-radius: 1px; }
+
+        .brand {
+            font-size: 22px; font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
 
-        .button-container button:hover, input[type="submit"]:not(:disabled):hover {
-            background-color: #2196F3;
-            color: white;
-        }
+        .top-center { flex: 1; max-width: 400px; }
 
-        input[type="submit"]:disabled {
-            background-color: #e3f2fd;
-            color: #b0bec5;
-            cursor: not-allowed;
-        }
+        .progress-track { width: 100%; height: 8px; background: #e8e8e8; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 4px; transition: width 0.5s ease; }
+        .progress-label { font-size: 11px; color: #999; text-align: center; margin-top: 3px; }
 
-        .input-container {
-            margin-bottom: 20px;
-        }
+        .top-right { display: flex; align-items: center; gap: 8px; }
 
-        .topic-input, .number-input {
-            width: 100%;
-            padding: 15px;
-            font-size: 18px;
-            border-radius: 25px;
-            text-align: center;
-            box-sizing: border-box;
-            margin-bottom: 5px;
-        }
+        .stats-pill { display: flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+        .stats-pill.cp { background: #e8f5e9; color: #2e7d32; }
+        .stats-pill.ip { background: #fce4ec; color: #c62828; }
 
-        .topic-input {
-            border: 2px solid #2196F3;
-            background-color: #e3f2fd;
-            color: #2196F3;
+        .btn-icon {
+            width: 38px; height: 38px; border: none; border-radius: 10px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 18px; transition: all 0.2s;
         }
+        .timer {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 14px; border-radius: 20px;
+            background: #f3f0ff; font-size: 14px; font-weight: 600;
+            color: #5e35b1; font-variant-numeric: tabular-nums;
+        }
+        .timer-icon { font-size: 16px; }
 
-        .number-input {
-            border: 2px solid #1976D2;
-            background-color: #e3f2fd;
-            color: #1976D2;
-        }
+        .btn-pause { background: #fff3e0; color: #e65100; }
+        .btn-pause:hover { background: #ffe0b2; transform: scale(1.05); }
+        .btn-end { background: #fce4ec; color: #c62828; }
+        .btn-end:hover { background: #ffcdd2; transform: scale(1.05); }
 
-        /* Additional styles */
-        .flashcard {
-            width: 100%;
-            height: 70px;
-            perspective: 1000px;
-            margin-bottom: 20px;
+        /* ── Sidebar ── */
+        .sidebar-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4); z-index: 299;
         }
-
-        .flashcard-inner {
-            position: relative;
-            width: 100%;
-            height: 220%;
-            text-align: center;
-            transition: transform 0.8s;
-            transform-style: preserve-3d;
-        }
-
-        .flashcard.flip .flashcard-inner {
-            transform: rotateY(180deg);
-        }
-
-        .flashcard-front, .flashcard-back {
-            position: absolute;
-            width: 100%;
-            height: 70%;
-            backface-visibility: hidden;
-            border: 1px solid #ccc;
-            border-radius: 10px;
-            padding: 20px;
-            box-sizing: border-box;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .flashcard-back {
-            transform: rotateY(180deg);
-        }
-
-        #user-info {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            display: flex;
-            align-items: center;
-            z-index: 1002;
-        }
-
-        #welcome-message {
-            margin-right: 15px;
-            font-size: 20px;
-            color: #2196F3;
-        }
-
-        #logout-btn {
-            padding: 10px 20px;
-            font-size: 18px;
-            background-color: #f44336;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-
-        #logout-btn:hover {
-            background-color: #d32f2f;
-        }
+        .sidebar-overlay.open { display: block; }
 
         .sidebar {
-            position: fixed;
-            left: -300px;
-            top: 0;
-            width: 300px;
-            height: 100%;
-            background-color: #bbdefb;
-            transition: left 0.3s;
-            padding: 20px;
-            overflow-y: auto;
-            z-index: 1000;
+            position: fixed; top: 0; left: -340px; width: 320px; height: 100%;
+            background: #fff; z-index: 300; transition: left 0.3s ease;
+            box-shadow: 4px 0 30px rgba(0,0,0,0.15);
+            display: flex; flex-direction: column;
+        }
+        .sidebar.open { left: 0; }
+
+        .sidebar-header {
+            padding: 20px 20px 16px; border-bottom: 1px solid #eee;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .sidebar-header h3 { font-size: 18px; font-weight: 700; color: #1a1a2e; }
+        .sidebar-close {
+            width: 32px; height: 32px; border: none; border-radius: 8px;
+            background: #f5f5f5; cursor: pointer; font-size: 18px; color: #888;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .sidebar-close:hover { background: #eee; }
+
+        /* Legend */
+        .legend {
+            padding: 14px 20px; border-bottom: 1px solid #eee;
+            display: flex; flex-wrap: wrap; gap: 10px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #666; }
+        .legend-dot {
+            width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0;
+        }
+        .legend-dot.lg-answered { background: #4caf50; }
+        .legend-dot.lg-marked { background: #ff9800; }
+        .legend-dot.lg-ans-marked { background: #7c4dff; }
+        .legend-dot.lg-skipped { background: #ef5350; }
+        .legend-dot.lg-unanswered { background: #e0e0e0; }
+        .legend-dot.lg-current { background: #667eea; }
+
+        /* Question grid */
+        .q-grid {
+            flex: 1; overflow-y: auto; padding: 16px 20px;
+            display: grid; grid-template-columns: repeat(5, 1fr);
+            gap: 8px; align-content: start;
+        }
+        .q-cell {
+            width: 100%; aspect-ratio: 1; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: 700; cursor: pointer;
+            text-decoration: none; transition: all 0.15s; border: 2px solid transparent;
+        }
+        .q-cell:hover { transform: scale(1.08); }
+
+        .q-cell.st-unanswered { background: #f0f0f0; color: #999; }
+        .q-cell.st-current { background: #667eea; color: #fff; box-shadow: 0 2px 10px rgba(102,126,234,0.4); }
+        .q-cell.st-answered { background: #4caf50; color: #fff; }
+        .q-cell.st-marked { background: #ff9800; color: #fff; }
+        .q-cell.st-answered_marked { background: #7c4dff; color: #fff; }
+        .q-cell.st-skipped { background: #ef5350; color: #fff; }
+
+        /* Sidebar stats */
+        .sidebar-stats {
+            padding: 16px 20px; border-top: 1px solid #eee;
+            display: flex; justify-content: space-around; background: #fafafa;
+        }
+        .ss-item { text-align: center; }
+        .ss-num { font-size: 20px; font-weight: 700; }
+        .ss-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* ── Main content ── */
+        .main { max-width: 780px; margin: 90px auto 110px; padding: 0 20px; }
+
+        .card {
+            background: #fff; border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+            padding: 40px; animation: slideUp 0.4s ease;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
-        .sidebar.active {
-            left: 0;
+        .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+
+        .question-number {
+            display: inline-block; background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff; font-size: 12px; font-weight: 700;
+            padding: 4px 14px; border-radius: 20px; letter-spacing: 0.5px;
         }
 
-        .sidebar-trigger {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 20px;
-            height: 100%;
-            z-index: 999;
+        .mark-btn {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+            cursor: pointer; border: 2px solid #ff9800; background: #fff; color: #ff9800;
+            transition: all 0.2s;
+        }
+        .mark-btn:hover { background: #fff8e1; }
+        .mark-btn.is-marked { background: #ff9800; color: #fff; }
+
+        .question-text { font-size: 22px; font-weight: 600; line-height: 1.5; color: #1a1a2e; margin-bottom: 28px; }
+
+        /* Options */
+        .options-list { list-style: none; }
+        .option-item { position: relative; margin-bottom: 12px; }
+        .option-item input[type="radio"] { display: none; }
+
+        .option-label {
+            display: flex; align-items: center; padding: 16px 20px;
+            border: 2px solid #e8e8e8; border-radius: 14px;
+            cursor: pointer; transition: all 0.2s; font-size: 16px; line-height: 1.4;
+        }
+        .option-label:hover { border-color: #667eea; background: #f0f0ff; }
+
+        .option-letter {
+            display: flex; align-items: center; justify-content: center;
+            width: 34px; height: 34px; border-radius: 10px;
+            background: #f0f0f5; font-weight: 700; font-size: 14px;
+            margin-right: 14px; flex-shrink: 0; transition: all 0.2s;
         }
 
-        .file-upload-label {
-            display: inline-block;
-            padding: 10px 15px;
-            background-color: #4CAF50;
-            color: white;
-            border-radius: 5px;
-            cursor: pointer;
-            margin: 40px;
+        .option-item input[type="radio"]:checked + .option-label { border-color: #667eea; background: #f0f0ff; }
+        .option-item input[type="radio"]:checked + .option-label .option-letter { background: #667eea; color: #fff; }
+
+        .option-item.is-correct .option-label { border-color: #4caf50; background: #e8f5e9; }
+        .option-item.is-correct .option-letter { background: #4caf50; color: #fff; }
+        .option-item.is-wrong .option-label { border-color: #ef5350; background: #ffebee; }
+        .option-item.is-wrong .option-letter { background: #ef5350; color: #fff; }
+        .option-item.submitted .option-label { cursor: default; }
+
+        /* Submit */
+        .submit-btn {
+            display: block; width: 100%; padding: 16px; margin-top: 24px;
+            border: none; border-radius: 14px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff; font-size: 17px; font-weight: 600;
+            cursor: pointer; transition: all 0.3s;
+        }
+        .submit-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102,126,234,0.4); }
+        .submit-btn:disabled { background: #d0d0d0; cursor: not-allowed; }
+
+        /* Feedback */
+        .feedback { margin-top: 24px; padding: 16px 20px; border-radius: 14px; font-size: 16px; font-weight: 500; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .feedback.correct-fb { background: #e8f5e9; border-left: 5px solid #4caf50; color: #2e7d32; }
+        .feedback.incorrect-fb { background: #ffebee; border-left: 5px solid #ef5350; color: #c62828; }
+
+        .explanation-box {
+            margin-top: 16px; padding: 16px 20px; background: #f3f0ff;
+            border-left: 5px solid #667eea; border-radius: 0 14px 14px 0;
+            text-align: left; animation: fadeIn 0.4s ease;
+        }
+        .explanation-box strong { color: #4527a0; }
+        .explanation-box p { margin-top: 8px; line-height: 1.6; color: #444; }
+
+        .wrong-box {
+            margin-top: 12px; padding: 16px 20px; background: #fff8e1;
+            border-left: 5px solid #ffb300; border-radius: 0 14px 14px 0;
+            text-align: left; animation: fadeIn 0.5s ease;
+        }
+        .wrong-box strong { color: #e65100; }
+        .wrong-box ul { margin-top: 8px; padding-left: 18px; }
+        .wrong-box li { margin-bottom: 6px; line-height: 1.5; color: #555; }
+
+        /* ── Bottom navigation ── */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: rgba(255,255,255,0.97); backdrop-filter: blur(10px);
+            box-shadow: 0 -2px 20px rgba(0,0,0,0.06);
+            padding: 14px 24px; display: flex; align-items: center;
+            justify-content: space-between; z-index: 200;
         }
 
-        #image-upload {
-            display: none;
+        .nav-btn {
+            display: flex; align-items: center; gap: 8px;
+            padding: 12px 24px; border: 2px solid transparent; border-radius: 12px;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            text-decoration: none; transition: all 0.2s;
         }
+        .nav-btn.prev-btn { background: #f5f5f5; color: #555; }
+        .nav-btn.prev-btn:hover { background: #e8e8e8; }
+        .nav-btn.next-btn { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+        .nav-btn.next-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(102,126,234,0.4); }
+        .nav-btn.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 
-        #main-content {
-            position: relative;
-            z-index: 1;
+        .nav-page-info { font-size: 14px; color: #888; font-weight: 500; }
+
+        /* ── Modal ── */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 1000;
+            align-items: center; justify-content: center;
         }
-
-        #toggle-sidebar {
-            position: fixed;
-            left: 10px;
-            top: 70px;
-            z-index: 1001;
-            padding: 15px 25px;
-            background-color: #2196F3;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 18px;
-            transition: background-color 0.3s;
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: #fff; border-radius: 20px; padding: 36px;
+            max-width: 420px; width: 90%; text-align: center; animation: slideUp 0.3s ease;
         }
-
-        #toggle-sidebar:hover {
-            background-color: #1976D2;
+        .modal h3 { font-size: 20px; margin-bottom: 12px; color: #1a1a2e; }
+        .modal p { color: #666; margin-bottom: 24px; line-height: 1.5; }
+        .modal-actions { display: flex; gap: 12px; justify-content: center; }
+        .modal-btn {
+            padding: 12px 28px; border: none; border-radius: 12px;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; text-decoration: none;
         }
+        .modal-btn.cancel { background: #f0f0f0; color: #555; }
+        .modal-btn.cancel:hover { background: #e0e0e0; }
+        .modal-btn.confirm { background: linear-gradient(135deg, #ef5350, #c62828); color: #fff; }
+        .modal-btn.confirm:hover { box-shadow: 0 4px 15px rgba(239,83,80,0.4); }
 
-        #quiz-history, #flashcard-history {
-            margin-top: 20px;
-        }
-
-        #quiz-list, #flashcard-list {
-            list-style-type: none;
-            padding: 0;
-        }
-
-        #quiz-list li, #flashcard-list li {
-            padding: 15px;
-            border-bottom: 1px solid #ddd;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-
-        #quiz-list li:hover, #flashcard-list li:hover {
-            background-color: #e3f2fd;
-        }
-
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: none; /* Hidden by default */
-            z-index: 1001;
-        }
-
-        .overlay.active {
-            display: block;
-        }
-
-        .loading-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            display: none;
-        }
-
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .loading-screen p {
-            color: white;
-            margin-top: 10px;
-            font-size: 18px;
+        /* ── Responsive ── */
+        @media (max-width: 600px) {
+            .card { padding: 24px 18px; }
+            .question-text { font-size: 18px; }
+            .top-bar { padding: 10px 14px; gap: 8px; }
+            .brand { font-size: 18px; }
+            .top-center { max-width: 120px; }
+            .stats-pill { padding: 4px 8px; font-size: 11px; }
+            .nav-btn { padding: 10px 16px; font-size: 14px; }
+            .sidebar { width: 280px; left: -300px; }
+            .q-grid { grid-template-columns: repeat(4, 1fr); }
         }
     </style>
 </head>
 <body>
-    <h1>Quiz</h1>
-    <div class="container">
-        <p style="color:#90a4ae; font-size:15px; margin-bottom:8px;">Question {{ qid + 1 }} of {{ total }}</p>
-        <h2>{{ question['question'] }}</h2>
-        <form method="POST">
-            {% for option in question['options'] %}
-                {% set letter = option['letter'] %}
-                <div class="option-container" onclick="selectOption('{{ letter }}')">
-                    <input type="radio" id="option_{{ letter }}" name="option" value="{{ letter }}"
-                        {% if submitted %}disabled{% endif %}
-                        {% if selected_option == letter %}checked{% endif %}>
-                    <label for="option_{{ letter }}" class="option-label
-                        {% if submitted %}
-                            {% if letter == question['correct_answer'] %} correct
-                            {% elif letter == selected_option %} incorrect
-                            {% endif %}
-                        {% endif %}">
-                        {{ letter }}. {{ option['text'] }}
-                    </label>
-                </div>
+
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h3>Questions</h3>
+            <button class="sidebar-close" onclick="toggleSidebar()">&times;</button>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item"><div class="legend-dot lg-current"></div>Current</div>
+            <div class="legend-item"><div class="legend-dot lg-answered"></div>Answered</div>
+            <div class="legend-item"><div class="legend-dot lg-marked"></div>Review</div>
+            <div class="legend-item"><div class="legend-dot lg-ans-marked"></div>Ans + Review</div>
+            <div class="legend-item"><div class="legend-dot lg-skipped"></div>Skipped</div>
+            <div class="legend-item"><div class="legend-dot lg-unanswered"></div>Not Visited</div>
+        </div>
+
+        <div class="q-grid">
+            {% for i in range(total) %}
+                <a href="{{ url_for('question', qid=i) }}"
+                   class="q-cell st-{{ statuses[i] }}"
+                   title="Q{{ i + 1 }} - {{ statuses[i]|replace('_', ' ')|title }}">
+                    {{ i + 1 }}
+                </a>
             {% endfor %}
-            <input type="submit" value="Submit Answer" {% if submitted %}disabled{% endif %} class="submit-button">
-        </form>
+        </div>
 
-        {% if submitted %}
-            {% if correct %}
-                <p class="correct" style="font-size:18px; margin-top:15px;">&#10003; Correct! Well done.</p>
-            {% else %}
-                <p class="incorrect" style="font-size:18px; margin-top:15px;">&#10007; Incorrect.
-                    The correct answer is <strong>{{ question['correct_answer'] }}. {{ question['correct_answer_text'] }}</strong>
-                </p>
-            {% endif %}
-
-            {% if question['explanation'] %}
-                <div style="background:#e8f5e9; border-left:4px solid #4caf50; padding:12px 16px; border-radius:6px; margin-top:16px; text-align:left;">
-                    <strong>Explanation</strong>
-                    <p style="margin:6px 0 0;">{{ question['explanation'] }}</p>
-                </div>
-            {% endif %}
-
-            {% if question['wrong_explanations'] %}
-                <div style="background:#fff8e1; border-left:4px solid #ffc107; padding:12px 16px; border-radius:6px; margin-top:12px; text-align:left;">
-                    <strong>Why the other options are not the best answer</strong>
-                    <ul style="margin:8px 0 0; padding-left:18px;">
-                        {% for letter, reason in question['wrong_explanations'].items() %}
-                            <li style="margin-bottom:6px;"><strong>{{ letter }}.</strong> {{ reason }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            {% endif %}
-
-            <div class="button-container">
-                {% if qid > 0 %}
-                    <form action="{{ url_for('question', qid=qid - 1) }}" method="get">
-                        <button type="submit">&#8592; Previous</button>
-                    </form>
-                {% else %}
-                    <span></span>
-                {% endif %}
-                {% if qid + 1 < total %}
-                    <form action="{{ url_for('question', qid=qid + 1) }}" method="get">
-                        <button type="submit">Next &#8594;</button>
-                    </form>
-                {% else %}
-                    <form action="{{ url_for('upload_file') }}" method="get">
-                        <button type="submit">Finish</button>
-                    </form>
-                {% endif %}
+        <div class="sidebar-stats">
+            <div class="ss-item">
+                <div class="ss-num" style="color:#4caf50">{{ answered_count }}</div>
+                <div class="ss-label">Answered</div>
             </div>
+            <div class="ss-item">
+                <div class="ss-num" style="color:#ff9800">{{ statuses|select('equalto','marked')|list|length + statuses|select('equalto','answered_marked')|list|length }}</div>
+                <div class="ss-label">Review</div>
+            </div>
+            <div class="ss-item">
+                <div class="ss-num" style="color:#ef5350">{{ statuses|select('equalto','skipped')|list|length }}</div>
+                <div class="ss-label">Skipped</div>
+            </div>
+            <div class="ss-item">
+                <div class="ss-num" style="color:#999">{{ total - answered_count }}</div>
+                <div class="ss-label">Remaining</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="top-left">
+            <button class="hamburger" onclick="toggleSidebar()" title="Question Navigator">
+                <span></span><span></span><span></span>
+            </button>
+            <span class="brand">QuizApp</span>
+        </div>
+        <div class="top-center">
+            <div class="progress-track">
+                <div class="progress-fill" style="width: {{ (answered_count / total * 100) if total else 0 }}%"></div>
+            </div>
+            <div class="progress-label">{{ answered_count }} of {{ total }} answered</div>
+        </div>
+        <div class="top-right">
+            <div class="timer">
+                <span class="timer-icon">&#9201;</span>
+                <span id="timer-display">00:00:00</span>
+            </div>
+            <span class="stats-pill cp">{{ correct_count }}</span>
+            <span class="stats-pill ip">{{ answered_count - correct_count }}</span>
+            <button class="btn-icon btn-pause" title="Pause Quiz" onclick="window.location.href='{{ url_for('pause_quiz', qid=qid) }}'">&#10074;&#10074;</button>
+            <button class="btn-icon btn-end" title="End Quiz" onclick="showEndModal()">&#10006;</button>
+        </div>
+    </div>
+
+    <!-- Main Card -->
+    <div class="main">
+        <div class="card">
+            <div class="card-top">
+                <span class="question-number">QUESTION {{ qid + 1 }} OF {{ total }}</span>
+                <form method="POST" style="margin:0;">
+                    <input type="hidden" name="action" value="mark_review">
+                    <button type="submit" class="mark-btn {% if marked[qid] %}is-marked{% endif %}">
+                        &#9873; {% if marked[qid] %}Marked{% else %}Mark for Review{% endif %}
+                    </button>
+                </form>
+            </div>
+
+            <h2 class="question-text">{{ question['question'] }}</h2>
+
+            <form method="POST" id="quiz-form">
+                <ul class="options-list">
+                    {% for option in question['options'] %}
+                        {% set letter = option['letter'] %}
+                        <li class="option-item
+                            {% if submitted %} submitted
+                                {% if letter == question['correct_answer'] %} is-correct
+                                {% elif letter == selected_option %} is-wrong
+                                {% endif %}
+                            {% endif %}">
+                            <input type="radio" id="opt_{{ letter }}" name="option" value="{{ letter }}"
+                                {% if submitted %}disabled{% endif %}
+                                {% if selected_option == letter %}checked{% endif %}>
+                            <label for="opt_{{ letter }}" class="option-label" onclick="{% if not submitted %}selectOpt('{{ letter }}'){% endif %}">
+                                <span class="option-letter">{{ letter }}</span>
+                                <span>{{ option['text'] }}</span>
+                            </label>
+                        </li>
+                    {% endfor %}
+                </ul>
+
+                {% if not submitted %}
+                    <button type="submit" class="submit-btn" id="submit-btn" disabled>Select an answer</button>
+                {% endif %}
+            </form>
+
+            {% if submitted %}
+                {% if correct %}
+                    <div class="feedback correct-fb">Correct! Well done.</div>
+                {% else %}
+                    <div class="feedback incorrect-fb">
+                        Incorrect. The correct answer is <strong>{{ question['correct_answer'] }}. {{ question['correct_answer_text'] }}</strong>
+                    </div>
+                {% endif %}
+
+                {% if question['explanation'] %}
+                    <div class="explanation-box">
+                        <strong>Explanation</strong>
+                        <p>{{ question['explanation'] }}</p>
+                    </div>
+                {% endif %}
+
+                {% if question['wrong_explanations'] %}
+                    <div class="wrong-box">
+                        <strong>Why the other options are not the best answer</strong>
+                        <ul>
+                            {% for letter, reason in question['wrong_explanations'].items() %}
+                                <li><strong>{{ letter }}.</strong> {{ reason }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+        {% if qid > 0 %}
+            <a href="{{ url_for('question', qid=qid - 1) }}" class="nav-btn prev-btn">&larr; Previous</a>
+        {% else %}
+            <span class="nav-btn prev-btn disabled">&larr; Previous</span>
+        {% endif %}
+
+        <span class="nav-page-info">{{ qid + 1 }} / {{ total }}</span>
+
+        {% if qid + 1 < total %}
+            <a href="{{ url_for('question', qid=qid + 1) }}" class="nav-btn next-btn">Next &rarr;</a>
+        {% else %}
+            <a href="{{ url_for('results') }}" class="nav-btn next-btn">Finish &rarr;</a>
         {% endif %}
     </div>
 
+    <!-- End Quiz Modal -->
+    <div class="modal-overlay" id="end-modal">
+        <div class="modal">
+            <h3>End Quiz?</h3>
+            <p>You've answered {{ answered_count }} of {{ total }} questions. Unanswered questions will be marked as skipped.</p>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" onclick="hideEndModal()">Cancel</button>
+                <a href="{{ url_for('results') }}" class="modal-btn confirm">End Quiz</a>
+            </div>
+        </div>
+    </div>
+
     <script>
-        function selectOption(optionValue) {
-            const radio = document.querySelector(`input[name="option"][value="${optionValue}"]`);
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebar-overlay').classList.toggle('open');
+        }
+
+        function selectOpt(val) {
+            const radio = document.getElementById('opt_' + val);
             if (radio && !radio.disabled) {
                 radio.checked = true;
+                const btn = document.getElementById('submit-btn');
+                if (btn) { btn.disabled = false; btn.textContent = 'Submit Answer'; }
             }
         }
+
+        function showEndModal() { document.getElementById('end-modal').classList.add('active'); }
+        function hideEndModal() { document.getElementById('end-modal').classList.remove('active'); }
+
+        // Timer - calculate elapsed using server-side start_time and elapsed_before_pause
+        var elapsedBefore = {{ elapsed_before }};
+        var startTime = {{ start_time }};
+        var pageLoadTime = Date.now() / 1000;
+        var elapsedAtLoad = elapsedBefore + (pageLoadTime - startTime);
+
+        function updateTimer() {
+            var now = Date.now() / 1000;
+            var total = elapsedAtLoad + (now - pageLoadTime);
+            var secs = Math.floor(total);
+            var h = Math.floor(secs / 3600);
+            var m = Math.floor((secs % 3600) / 60);
+            var s = secs % 60;
+            document.getElementById('timer-display').textContent =
+                String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+        }
+        updateTimer();
+        setInterval(updateTimer, 1000);
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft' && {{ qid }} > 0)
+                window.location.href = '{{ url_for("question", qid=qid - 1) }}';
+            if (e.key === 'ArrowRight' && {{ qid }} + 1 < {{ total }})
+                window.location.href = '{{ url_for("question", qid=qid + 1) }}';
+            if (e.key === 'Escape') { hideEndModal(); document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-overlay').classList.remove('open'); }
+            var key = e.key.toUpperCase();
+            if (['A','B','C','D'].includes(key)) selectOpt(key);
+        });
     </script>
 </body>
 </html>

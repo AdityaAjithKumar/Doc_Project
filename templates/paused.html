@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuizApp - Paused</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            padding: 48px;
+            width: 100%;
+            max-width: 440px;
+            text-align: center;
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .brand {
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 28px;
+        }
+
+        .pause-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        h2 {
+            font-size: 26px;
+            color: #1a1a2e;
+            margin-bottom: 12px;
+        }
+
+        .info {
+            color: #888;
+            font-size: 15px;
+            margin-bottom: 28px;
+            line-height: 1.5;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: center;
+            gap: 14px;
+            margin-bottom: 32px;
+        }
+
+        .stat-box {
+            padding: 12px 20px;
+            border-radius: 12px;
+            text-align: center;
+            min-width: 100px;
+        }
+
+        .stat-box.progress-stat { background: #e8eaf6; }
+        .stat-box.correct-stat { background: #e8f5e9; }
+
+        .stat-box .stat-num {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .stat-box.progress-stat .stat-num { color: #3949ab; }
+        .stat-box.correct-stat .stat-num { color: #2e7d32; }
+
+        .stat-box .stat-label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .btn {
+            display: block;
+            padding: 16px;
+            border: none;
+            border-radius: 14px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-danger {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .btn-danger:hover { background: #ffcdd2; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="brand">QuizApp</div>
+        <div class="pause-icon">&#9208;</div>
+        <h2>Quiz Paused</h2>
+        <p class="info">Take your time. Your progress is saved and you can resume whenever you're ready.</p>
+
+        <div class="stat-row">
+            <div class="stat-box progress-stat">
+                <div class="stat-num">{{ answered_count }}/{{ total }}</div>
+                <div class="stat-label">Answered</div>
+            </div>
+            <div class="stat-box correct-stat">
+                <div class="stat-num">{{ correct_count }}</div>
+                <div class="stat-label">Correct</div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <a href="{{ url_for('question', qid=paused_qid, resume=1) }}" class="btn btn-primary">Resume Quiz</a>
+            <a href="{{ url_for('results') }}" class="btn btn-danger">End Quiz</a>
+        </div>
+    </div>
+</body>
+</html>

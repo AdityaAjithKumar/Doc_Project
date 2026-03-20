@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session
 import docx
 import re
 import os
+import time
 from werkzeug.utils import secure_filename
 from flask_session import Session
 
@@ -145,7 +146,12 @@ def upload_file():
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(file_path)
             session['questions'] = read_docx(file_path)
-            session['answers'] = [None] * len(session['questions'])  # Initialize answers list
+            session['answers'] = [None] * len(session['questions'])
+            session['marked'] = [False] * len(session['questions'])
+            session['visited'] = [False] * len(session['questions'])
+            session['paused'] = False
+            session['start_time'] = time.time()
+            session['elapsed_before_pause'] = 0
             return redirect(url_for('question', qid=0))
     return render_template('upload.html')
 
@@ -154,25 +160,75 @@ def upload_file():
 def question(qid):
     questions = session.get('questions', [])
     answers = session.get('answers', [])
-    if qid >= len(questions) or qid < 0:
+    marked = session.get('marked', [])
+    visited = session.get('visited', [])
+    if not questions or qid >= len(questions) or qid < 0:
         return redirect(url_for('upload_file'))
+
+    # Check if quiz is paused
+    if session.get('paused') and request.args.get('resume') != '1':
+        return redirect(url_for('paused'))
+
+    if request.args.get('resume') == '1':
+        session['paused'] = False
+        session['start_time'] = time.time()
+
+    # Mark this question as visited
+    if qid < len(visited):
+        visited[qid] = True
+        session['visited'] = visited
 
     q = questions[qid]
     correct = None
     selected_option = None
     submitted = answers[qid] is not None
 
-    if request.method == 'POST' and not submitted:
-        selected_option = request.form.get('option')
-        if selected_option:
-            correct = (selected_option == q['correct_answer'])
-            answers[qid] = {'selected_option': selected_option, 'correct': correct}
-            session['answers'] = answers
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        # Toggle mark for review
+        if action == 'mark_review':
+            marked[qid] = not marked[qid]
+            session['marked'] = marked
             return redirect(url_for('question', qid=qid))
+
+        # Submit answer
+        if not submitted:
+            selected_option = request.form.get('option')
+            if selected_option:
+                correct = (selected_option == q['correct_answer'])
+                answers[qid] = {'selected_option': selected_option, 'correct': correct}
+                session['answers'] = answers
+                return redirect(url_for('question', qid=qid))
 
     if submitted:
         selected_option = answers[qid]['selected_option']
         correct = answers[qid]['correct']
+
+    # Calculate progress stats
+    answered_count = sum(1 for a in answers if a is not None)
+    correct_count = sum(1 for a in answers if a is not None and a['correct'])
+
+    # Build per-question status for sidebar
+    statuses = []
+    for i in range(len(questions)):
+        a = answers[i] if i < len(answers) else None
+        m = marked[i] if i < len(marked) else False
+        v = visited[i] if i < len(visited) else False
+        if a is not None and m:
+            statuses.append('answered_marked')
+        elif a is not None:
+            statuses.append('answered')
+        elif m:
+            statuses.append('marked')
+        elif v:
+            statuses.append('skipped')
+        else:
+            statuses.append('unanswered')
+    statuses[qid] = 'current' if statuses[qid] == 'unanswered' or statuses[qid] == 'skipped' else statuses[qid]
+
+    elapsed_before = session.get('elapsed_before_pause', 0)
+    start_time = session.get('start_time', time.time())
 
     return render_template(
         'question.html',
@@ -182,7 +238,103 @@ def question(qid):
         submitted=submitted,
         selected_option=selected_option,
         total=len(questions),
+        answered_count=answered_count,
+        correct_count=correct_count,
+        answers=answers,
+        marked=marked,
+        statuses=statuses,
+        start_time=start_time,
+        elapsed_before=elapsed_before,
     )
+
+
+@app.route('/pause')
+def pause_quiz():
+    """Pause the quiz and remember the current question."""
+    qid = request.args.get('qid', 0, type=int)
+    # Accumulate elapsed time before pausing
+    start = session.get('start_time', time.time())
+    session['elapsed_before_pause'] = session.get('elapsed_before_pause', 0) + (time.time() - start)
+    session['paused'] = True
+    session['paused_qid'] = qid
+    return redirect(url_for('paused'))
+
+
+@app.route('/paused')
+def paused():
+    """Show the paused screen."""
+    questions = session.get('questions', [])
+    if not questions:
+        return redirect(url_for('upload_file'))
+    answers = session.get('answers', [])
+    answered_count = sum(1 for a in answers if a is not None)
+    correct_count = sum(1 for a in answers if a is not None and a['correct'])
+    paused_qid = session.get('paused_qid', 0)
+    return render_template(
+        'paused.html',
+        paused_qid=paused_qid,
+        total=len(questions),
+        answered_count=answered_count,
+        correct_count=correct_count,
+    )
+
+
+@app.route('/results')
+def results():
+    """Show the final quiz results."""
+    questions = session.get('questions', [])
+    answers = session.get('answers', [])
+    if not questions:
+        return redirect(url_for('upload_file'))
+
+    total = len(questions)
+    answered = sum(1 for a in answers if a is not None)
+    correct_count = sum(1 for a in answers if a is not None and a['correct'])
+    incorrect_count = answered - correct_count
+    unanswered = total - answered
+    percentage = round((correct_count / total) * 100) if total else 0
+
+    # Build per-question summary
+    summary = []
+    for i, (q, a) in enumerate(zip(questions, answers)):
+        summary.append({
+            'number': q['number'],
+            'question': q['question'],
+            'correct_answer': q['correct_answer'],
+            'selected': a['selected_option'] if a else None,
+            'is_correct': a['correct'] if a else None,
+        })
+
+    # Calculate total elapsed time
+    elapsed = session.get('elapsed_before_pause', 0)
+    start = session.get('start_time', time.time())
+    if not session.get('paused'):
+        elapsed += time.time() - start
+    total_seconds = int(elapsed)
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+
+    return render_template(
+        'results.html',
+        total=total,
+        answered=answered,
+        correct_count=correct_count,
+        incorrect_count=incorrect_count,
+        unanswered=unanswered,
+        percentage=percentage,
+        summary=summary,
+        time_hours=hours,
+        time_minutes=minutes,
+        time_seconds=seconds,
+    )
+
+
+@app.route('/restart')
+def restart():
+    """Clear the session and start fresh."""
+    session.clear()
+    return redirect(url_for('upload_file'))
 
 
 if __name__ == '__main__':
