@@ -18,35 +18,53 @@ if not os.path.exists(app.config['UPLOAD_FOLDER']):
 
 
 def read_docx(file_path):
-    """Parse an Answer Key docx with the schema:
+    """Parse a CRISC-style docx with the schema:
+        N. <question text>
+
+        Options:
+
+        A. <option>
+        B. <option>
+        C. <option>
+        D. <option>
+        Correct answer: X
+
+        Justification:
+
+        A. <explanation for A>
+        B. <explanation for B>
+        C. <explanation for C>
+        D. <explanation for D>
+
+    Also supports the older 'Answer Key' format:
         Question N: <text>
-        • A. <option>
-        • B. <option>
-        • C. <option>
-        • D. <option>
-        The correct answer is: X. <answer text>
-        Explanation
-        <explanation paragraph>
-        Why the other options are not the best answer
-        • A. <option>: <reason>
-        • C. <option>: <reason>
-        • D. <option>: <reason>
+        A. <option> ...
+        The correct answer is: X. <text>
+        Explanation ...
+        Why the other options ...
+
     Duplicate questions (same number) are skipped.
     """
     doc = docx.Document(file_path)
     questions = []
     seen_numbers = set()
     current_q = None
-    state = None          # 'options' | 'explanation' | 'why_wrong'
+    state = None          # 'options' | 'justification' | 'explanation' | 'why_wrong'
     explanation_buf = []
 
-    # Regex patterns
-    q_re      = re.compile(r'^Question\s+(\d+):\s+(.+)', re.IGNORECASE)
-    # Options / wrong-explanation bullets have NO literal bullet char in text;
-    # the 'List Bullet' Word style is purely a paragraph style.
+    # Regex patterns — new format
+    new_q_re  = re.compile(r'^(\d+)\.\s+(.+)')
     opt_re    = re.compile(r'^([A-D])\.\s+(.+)')
-    answer_re = re.compile(r'^The correct answer is:\s*([A-D])\.\s+(.*)', re.IGNORECASE)
-    why_re    = re.compile(r'^([A-D])\.\s+(.+)')
+    new_ans_re = re.compile(r'^Correct answer:\s*([A-D])', re.IGNORECASE)
+    short_ans_re = re.compile(r'^Answer:\s*([A-D])', re.IGNORECASE)
+    prose_ans_re   = re.compile(r'^([A-D])\s+is the correct answer', re.IGNORECASE)
+    # Combined justification line e.g. "B. C. D. explanation text"
+    combined_just_re = re.compile(r'^((?:[A-D]\.\s*)+)(.+)')
+
+    # Regex patterns — old format
+    old_q_re  = re.compile(r'^Question\s+(\d+):\s+(.+)', re.IGNORECASE)
+    old_ans_re = re.compile(r'^The correct answer is:\s*([A-D])\.\s+(.*)', re.IGNORECASE)
+    plain_q_re = re.compile(r'^(\d+)\s+([A-Z].+)')  # "N Text..." (no period, Domain 4)
 
     def save_current():
         if current_q:
@@ -59,8 +77,30 @@ def read_docx(file_path):
         if not text:
             continue
 
-        # Skip section headers
-        if re.match(r'^Answer Key', text, re.IGNORECASE):
+        # Strip leading dashes/hyphens (e.g. "-4. question")
+        text = re.sub(r'^[-–—]+\s*', '', text)
+        if not text:
+            continue
+
+        # Skip domain/section headers
+        if re.match(r'^(Answer Key|DOMAIN\s+\d|Domain\s+\d)', text, re.IGNORECASE):
+            continue
+        if text.lower() in ('options:', 'options'):
+            if current_q:
+                # If the current question already has options and a correct answer,
+                # this is an orphaned Options block (missing question heading).
+                # Save the current question and ignore orphaned options.
+                if current_q['options'] and current_q['correct_answer']:
+                    save_current()
+                    current_q = None
+                    state = None
+                    explanation_buf = []
+                else:
+                    state = 'options'
+            continue
+        if text.lower() in ('justification:', 'justification'):
+            state = 'justification'
+            explanation_buf = []
             continue
         if re.match(r'^Why the other options', text, re.IGNORECASE):
             if current_q and explanation_buf:
@@ -73,12 +113,12 @@ def read_docx(file_path):
             explanation_buf = []
             continue
 
-        # New question heading
-        m = q_re.match(text)
+        # New question heading: "N. question text"
+        # Must check old format first to avoid "A. option" matching as question
+        m = old_q_re.match(text)
         if m:
             q_num = int(m.group(1))
             if q_num in seen_numbers:
-                # Duplicate: finalise any in-progress question and skip
                 save_current()
                 current_q = None
                 state = None
@@ -89,21 +129,108 @@ def read_docx(file_path):
             current_q = {
                 'number': q_num,
                 'question': m.group(2),
-                'options': [],           # list of {'letter': str, 'text': str}
-                'correct_answer': '',    # letter only, e.g. 'B'
+                'options': [],
+                'correct_answer': '',
                 'correct_answer_text': '',
                 'explanation': '',
-                'wrong_explanations': {}  # letter -> reason string
+                'wrong_explanations': {}
             }
             state = 'options'
             explanation_buf = []
             continue
 
+        # New format question: "N. question text" (only if not in options/justification state)
+        if state is None or state == 'justification':
+            m = new_q_re.match(text)
+            if m and not re.match(r'^[A-D]\.\s', text):
+                q_num = int(m.group(1))
+                if q_num in seen_numbers:
+                    save_current()
+                    current_q = None
+                    state = None
+                    explanation_buf = []
+                    continue
+                seen_numbers.add(q_num)
+                save_current()
+                current_q = {
+                    'number': q_num,
+                    'question': m.group(2),
+                    'options': [],
+                    'correct_answer': '',
+                    'correct_answer_text': '',
+                    'explanation': '',
+                    'wrong_explanations': {}
+                }
+                state = 'options'  # collect options (header may or may not appear)
+                explanation_buf = []
+                continue
+
+        # Domain 4 style: "N text" (no period after number)
+        if state is None or state == 'justification':
+            m = plain_q_re.match(text)
+            if m:
+                q_num = int(m.group(1))
+                if q_num < 1000:  # sanity check
+                    if q_num in seen_numbers:
+                        save_current()
+                        current_q = None
+                        state = None
+                        explanation_buf = []
+                        continue
+                    seen_numbers.add(q_num)
+                    save_current()
+                    current_q = {
+                        'number': q_num,
+                        'question': m.group(2),
+                        'options': [],
+                        'correct_answer': '',
+                        'correct_answer_text': '',
+                        'explanation': '',
+                        'wrong_explanations': {}
+                    }
+                    state = 'options'  # options follow directly
+                    explanation_buf = []
+                    continue
+
         if current_q is None:
             continue
 
-        # "The correct answer is: X. ..."
-        m = answer_re.match(text)
+        # "Correct answer: X" (new format)
+        m = new_ans_re.match(text)
+        if m:
+            current_q['correct_answer'] = m.group(1)
+            # Find the matching option text for correct_answer_text
+            for opt in current_q['options']:
+                if opt['letter'] == m.group(1):
+                    current_q['correct_answer_text'] = opt['text']
+                    break
+            state = None
+            continue
+
+        # "Answer: X" (Domain 3 format)
+        m = short_ans_re.match(text)
+        if m:
+            current_q['correct_answer'] = m.group(1)
+            for opt in current_q['options']:
+                if opt['letter'] == m.group(1):
+                    current_q['correct_answer_text'] = opt['text']
+                    break
+            state = None
+            continue
+
+        # "X is the correct answer" (Domain 3 alt format)
+        m = prose_ans_re.match(text)
+        if m:
+            current_q['correct_answer'] = m.group(1)
+            for opt in current_q['options']:
+                if opt['letter'] == m.group(1):
+                    current_q['correct_answer_text'] = opt['text']
+                    break
+            state = None
+            continue
+
+        # "The correct answer is: X. text" (old format)
+        m = old_ans_re.match(text)
         if m:
             current_q['correct_answer'] = m.group(1)
             current_q['correct_answer_text'] = m.group(2)
@@ -116,19 +243,41 @@ def read_docx(file_path):
                 current_q['options'].append({'letter': m.group(1), 'text': m.group(2)})
             continue
 
+        if state == 'justification':
+            # Handle combined lines like "B. C. D. explanation text"
+            m = combined_just_re.match(text)
+            if m:
+                letters_part = m.group(1)
+                explanation_text = m.group(2)
+                # Extract individual letters
+                letters = re.findall(r'[A-D]', letters_part)
+                for letter in letters:
+                    current_q['wrong_explanations'][letter] = explanation_text
+                # Build explanation from the correct answer's justification
+                if current_q['correct_answer'] and current_q['correct_answer'] in letters:
+                    explanation_buf.append(explanation_text)
+                elif len(letters) == 1 and letters[0] == current_q['correct_answer']:
+                    explanation_buf.append(explanation_text)
+            continue
+
         if state == 'explanation':
             explanation_buf.append(text)
             continue
 
         if state == 'why_wrong':
-            m = why_re.match(text)
+            m = opt_re.match(text)
             if m:
                 letter = m.group(1)
-                # Format: "Option text: reason" – keep the full string as the reason
                 current_q['wrong_explanations'][letter] = m.group(2)
             continue
 
     save_current()
+
+    # Post-process: set explanation from the correct answer's justification if not set
+    for q in questions:
+        if not q['explanation'] and q['correct_answer'] and q['correct_answer'] in q['wrong_explanations']:
+            q['explanation'] = q['wrong_explanations'].pop(q['correct_answer'])
+
     questions.sort(key=lambda q: q['number'])
     return questions
 
@@ -136,23 +285,30 @@ def read_docx(file_path):
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
     if request.method == 'POST':
-        if 'file' not in request.files:
-            return 'No file part'
-        file = request.files['file']
-        if file.filename == '':
-            return 'No selected file'
-        if file:
-            filename = secure_filename(file.filename)
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(file_path)
-            session['questions'] = read_docx(file_path)
-            session['answers'] = [None] * len(session['questions'])
-            session['marked'] = [False] * len(session['questions'])
-            session['visited'] = [False] * len(session['questions'])
-            session['paused'] = False
-            session['start_time'] = time.time()
-            session['elapsed_before_pause'] = 0
-            return redirect(url_for('question', qid=0))
+        files = request.files.getlist('file')
+        if not files or all(f.filename == '' for f in files):
+            return 'No file selected'
+        all_questions = []
+        for file in files:
+            if file and file.filename:
+                filename = secure_filename(file.filename)
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(file_path)
+                all_questions.extend(read_docx(file_path))
+        if not all_questions:
+            return 'No questions found in the uploaded file(s)'
+        # Re-number questions sequentially (1-based) across all files
+        all_questions.sort(key=lambda q: q['number'])
+        for i, q in enumerate(all_questions):
+            q['number'] = i + 1
+        session['questions'] = all_questions
+        session['answers'] = [None] * len(all_questions)
+        session['marked'] = [False] * len(all_questions)
+        session['visited'] = [False] * len(all_questions)
+        session['paused'] = False
+        session['start_time'] = time.time()
+        session['elapsed_before_pause'] = 0
+        return redirect(url_for('question', qid=0))
     return render_template('upload.html')
 
 

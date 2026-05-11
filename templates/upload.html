@@ -147,11 +147,11 @@
         <form method="POST" enctype="multipart/form-data" id="upload-form">
             <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
                 <div class="drop-icon">&#128196;</div>
-                <div class="drop-text">Drop your .docx file here</div>
-                <div class="drop-hint">or click to browse</div>
+                <div class="drop-text">Drop your .docx file(s) here</div>
+                <div class="drop-hint">or click to browse (select one or more)</div>
             </div>
 
-            <input type="file" name="file" accept=".docx" class="file-input" id="file-input">
+            <input type="file" name="file" accept=".docx" class="file-input" id="file-input" multiple>
 
             <div class="file-name" id="file-name">
                 <span id="file-name-text"></span>
@@ -172,7 +172,7 @@
 
         fileInput.addEventListener('change', function() {
             if (this.files.length) {
-                showFile(this.files[0]);
+                showFiles(this.files);
             }
         });
 
@@ -189,17 +189,19 @@
             e.preventDefault();
             this.classList.remove('dragover');
             const files = e.dataTransfer.files;
-            if (files.length && files[0].name.endsWith('.docx')) {
+            const valid = Array.from(files).every(f => f.name.endsWith('.docx'));
+            if (files.length && valid) {
                 fileInput.files = files;
-                showFile(files[0]);
+                showFiles(files);
             }
         });
 
-        function showFile(file) {
-            fileNameText.textContent = file.name;
+        function showFiles(files) {
+            const names = Array.from(files).map(f => f.name);
+            fileNameText.textContent = names.length === 1 ? names[0] : names.length + ' files selected';
             fileName.classList.add('visible');
             submitBtn.classList.add('ready');
-            dropZone.querySelector('.drop-text').textContent = 'File selected';
+            dropZone.querySelector('.drop-text').textContent = names.length === 1 ? 'File selected' : names.length + ' files selected';
             dropZone.querySelector('.drop-hint').textContent = 'Click to change';
         }
     </script>
